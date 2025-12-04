@@ -5,10 +5,14 @@ import com.facilityops.facility_ops_hub.models.User;
 import com.facilityops.facility_ops_hub.models.dto.IssueDTO;
 import com.facilityops.facility_ops_hub.models.dto.IssueRequest;
 import com.facilityops.facility_ops_hub.models.dto.UpdateIssueRequest;
+import com.facilityops.facility_ops_hub.models.dto.UpdateIssueStatusRequest;
 import com.facilityops.facility_ops_hub.models.enums.IssueStatus;
+import com.facilityops.facility_ops_hub.models.enums.Role;
 import com.facilityops.facility_ops_hub.repositories.IssueRepository;
+import com.facilityops.facility_ops_hub.repositories.UserRepository;
 import com.facilityops.facility_ops_hub.services.IssueService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -18,6 +22,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class IssueServiceImpl implements IssueService {
 
+    private final UserRepository userRepository;
     private final IssueRepository issueRepository;
 
     @Override
@@ -113,5 +118,80 @@ public class IssueServiceImpl implements IssueService {
         Issue updated = issueRepository.save(issue);
         return convertToDTO(updated);
     }
+
+    @Override
+    public IssueDTO assignIssue(Long issueId, Long engineerId, User admin) {
+
+        // Only admin can assign
+        if (admin.getRole() != Role.ADMIN) {
+            throw new RuntimeException("Only admin can assign issues");
+        }
+
+        Issue issue = issueRepository.findById(issueId)
+                .orElseThrow(() -> new RuntimeException("Issue not found"));
+
+        User engineer = userRepository.findById(engineerId)
+                .orElseThrow(() -> new RuntimeException("Engineer not found"));
+
+        if (engineer.getRole() != Role.ENGINEER) {
+            throw new RuntimeException("Selected user is not an engineer");
+        }
+
+        issue.setAssignedTo(engineer);
+        issue.setStatus(IssueStatus.IN_PROGRESS);
+        issue.setUpdatedAt(LocalDateTime.now());
+
+        Issue saved = issueRepository.save(issue);
+
+        return convertToDTO(saved);
+    }
+
+    @Override
+    public IssueDTO updateStatus(Long issueId, UpdateIssueStatusRequest request, User user) {
+
+        Issue issue = issueRepository.findById(issueId)
+                .orElseThrow(() -> new RuntimeException("Issue not found"));
+
+        IssueStatus newStatus = request.getStatus();
+
+        // Only engineer assigned OR admin can update
+        if (user.getRole() != Role.ENGINEER && user.getRole() != Role.ADMIN) {
+            throw new RuntimeException("Only engineers or admin can update status");
+        }
+
+        // Engineer check
+        if (user.getRole() == Role.ENGINEER) {
+            if (issue.getAssignedTo() == null || !issue.getAssignedTo().getId().equals(user.getId())) {
+                throw new RuntimeException("You are not assigned to this issue");
+            }
+        }
+
+        // Allowed transitions
+        IssueStatus current = issue.getStatus();
+
+        boolean valid = false;
+
+        if (current == IssueStatus.OPEN && newStatus == IssueStatus.ASSIGNED)
+            valid = true;
+
+        if (current == IssueStatus.ASSIGNED && newStatus == IssueStatus.IN_PROGRESS)
+            valid = true;
+
+        if (current == IssueStatus.IN_PROGRESS && newStatus == IssueStatus.COMPLETED)
+            valid = true;
+
+        if (current == IssueStatus.COMPLETED && newStatus == IssueStatus.CLOSED)
+            valid = true;
+
+
+        // Update status
+        issue.setStatus(newStatus);
+        issue.setUpdatedAt(LocalDateTime.now());
+
+        issueRepository.save(issue);
+
+        return convertToDTO(issue);
+    }
+
 
 }

@@ -1,6 +1,7 @@
 package com.facilityops.facility_ops_hub.controllers;
 
 import com.facilityops.facility_ops_hub.models.User;
+import com.facilityops.facility_ops_hub.models.dto.AssignIssueRequest;
 import com.facilityops.facility_ops_hub.models.dto.IssueDTO;
 import com.facilityops.facility_ops_hub.models.dto.IssueRequest;
 import com.facilityops.facility_ops_hub.models.dto.UpdateIssueRequest;
@@ -58,6 +59,13 @@ public class IssueController {
                                   @RequestBody UpdateIssueRequest request,
                                   @AuthenticationPrincipal User user) {
         return issueService.updateMyIssue(id, request, user);
+    }
+
+    @PutMapping("/assign/{issueId}")
+    public IssueDTO assignIssue(@PathVariable Long issueId,
+                                @RequestBody AssignIssueRequest request,
+                                @AuthenticationPrincipal User admin) {
+        return issueService.assignIssue(issueId, request.getEngineerId(), admin);
     }
 
 
