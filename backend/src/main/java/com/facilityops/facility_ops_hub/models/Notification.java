@@ -13,11 +13,11 @@ public class Notification {
 
     private String message;
 
-    private boolean readStatus = false;
+    private boolean isRead = false;
 
     private LocalDateTime timestamp = LocalDateTime.now();
 
     @ManyToOne
-    private User user;  // receiver
+    private User recipient;  // receiver
 }
 
