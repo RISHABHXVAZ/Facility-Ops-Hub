@@ -2,9 +2,13 @@ package com.facilityops.facility_ops_hub.models;
 import com.facilityops.facility_ops_hub.models.enums.Role;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
 @Table(name = "users")
+@Getter
+@Setter
 public class User {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)

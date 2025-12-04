@@ -2,13 +2,21 @@ package com.facilityops.facility_ops_hub.models;
 import com.facilityops.facility_ops_hub.models.enums.IssueStatus;
 
 
-import jakarta.annotation.Priority;
+import com.facilityops.facility_ops_hub.models.enums.Priority;
 import jakarta.persistence.*;
 
-import java.time.LocalDateTime;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 
+import java.time.LocalDateTime;
 @Entity
 @Table(name = "issues")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Issue {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -31,11 +39,9 @@ public class Issue {
 
     private LocalDateTime slaDeadline;
 
-    // Who raised the issue (Ranger)
     @ManyToOne
     private User createdBy;
 
-    // Assigned engineer
     @ManyToOne
     private User assignedTo;
 }
