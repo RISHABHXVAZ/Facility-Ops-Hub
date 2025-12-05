@@ -26,6 +26,10 @@ public interface IssueService {
 
     IssueDTO updateStatus(Long issueId, UpdateIssueStatusRequest request, User user);
 
+    void deleteIssue(Long issueId, User user);
+
+    List<IssueDTO> getHistory(User user);
+
 
 
 }
