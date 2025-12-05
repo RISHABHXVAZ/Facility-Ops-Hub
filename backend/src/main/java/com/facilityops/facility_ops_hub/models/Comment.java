@@ -1,13 +1,14 @@
 package com.facilityops.facility_ops_hub.models;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
 @Entity
+@Getter @Setter
 @Table(name = "comments")
-@Data
 public class Comment {
 
     @Id
@@ -20,8 +21,8 @@ public class Comment {
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @ManyToOne
-    private User user;  // who wrote the comment
+    private User createdBy;
 
     @ManyToOne
-    private Issue issue; // which issue this comment belongs to
+    private Issue issue;
 }
