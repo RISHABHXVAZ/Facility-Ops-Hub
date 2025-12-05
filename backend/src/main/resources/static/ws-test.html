@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Notification Test</title>
+</head>
+<body>
+
+<h2>WebSocket Notifications Test</h2>
+
+<p>Listening on <b>/topic/notifications/<span id="uid"></span></b></p>
+
+<pre id="log"></pre>
+
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+
+<script>
+    const userId = 15;
+    document.getElementById("uid").innerText = userId;
+
+    const socket = new SockJS("http://localhost:8080/ws");
+    const client = Stomp.over(socket);
+
+    client.connect({}, frame => {
+        console.log("CONNECTED:", frame);
+
+        client.subscribe("/topic/notifications/" + userId, msg => {
+            console.log("NOTIFICATION:", msg.body);
+            alert("Notification: " + msg.body);
+        });
+
+    }, err => {
+        console.error("STOMP ERROR:", err);
+    });
+</script>
+
+
+</body>
+</html>

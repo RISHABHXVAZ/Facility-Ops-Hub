@@ -13,6 +13,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/issues/{issueId}/comments")
 @RequiredArgsConstructor
+@CrossOrigin("*")
 public class CommentController {
 
     private final CommentService commentService;
