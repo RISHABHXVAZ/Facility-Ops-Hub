@@ -138,7 +138,7 @@ public class IssueServiceImpl implements IssueService {
         }
 
         issue.setAssignedTo(engineer);
-        issue.setStatus(IssueStatus.IN_PROGRESS);
+        issue.setStatus(IssueStatus.ASSIGNED);
         issue.setUpdatedAt(LocalDateTime.now());
 
         Issue saved = issueRepository.save(issue);
@@ -191,6 +191,56 @@ public class IssueServiceImpl implements IssueService {
         issueRepository.save(issue);
 
         return convertToDTO(issue);
+    }
+
+    @Override
+    public void deleteIssue(Long issueId, User user) {
+
+        Issue issue = issueRepository.findById(issueId)
+                .orElseThrow(() -> new RuntimeException("Issue not found"));
+
+        if (user.getRole() == Role.ADMIN) {
+            issueRepository.delete(issue);
+            return;
+        }
+
+        if (issue.getCreatedBy().getId().equals(user.getId())) {
+
+            if (issue.getStatus() != IssueStatus.OPEN) {
+                throw new RuntimeException("You can only delete issues that are still OPEN");
+            }
+
+            issueRepository.delete(issue);
+            return;
+        }
+
+        throw new RuntimeException("You are not allowed to delete this issue");
+    }
+
+    @Override
+    public List<IssueDTO> getHistory(User user) {
+
+        // ADMIN → full history
+        if (user.getRole() == Role.ADMIN) {
+            return issueRepository.findAll()
+                    .stream()
+                    .map(this::convertToDTO)
+                    .toList();
+        }
+
+        // ENGINEER → all issues ever assigned to them
+        if (user.getRole() == Role.ENGINEER) {
+            return issueRepository.findByAssignedTo(user)
+                    .stream()
+                    .map(this::convertToDTO)
+                    .toList();
+        }
+
+        // USER → all issues created by them
+        return issueRepository.findByCreatedBy(user)
+                .stream()
+                .map(this::convertToDTO)
+                .toList();
     }
 
 

@@ -1,10 +1,7 @@
 package com.facilityops.facility_ops_hub.controllers;
 
 import com.facilityops.facility_ops_hub.models.User;
-import com.facilityops.facility_ops_hub.models.dto.AssignIssueRequest;
-import com.facilityops.facility_ops_hub.models.dto.IssueDTO;
-import com.facilityops.facility_ops_hub.models.dto.IssueRequest;
-import com.facilityops.facility_ops_hub.models.dto.UpdateIssueRequest;
+import com.facilityops.facility_ops_hub.models.dto.*;
 import com.facilityops.facility_ops_hub.models.enums.Role;
 import com.facilityops.facility_ops_hub.services.IssueService;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +27,7 @@ public class IssueController {
     public List<IssueDTO> myIssues(@AuthenticationPrincipal User user) {
         return issueService.getMyIssues(user);
     }
+
 
     @GetMapping("/assigned")
     public List<IssueDTO> assignedIssues(@AuthenticationPrincipal User user) {
@@ -61,11 +59,32 @@ public class IssueController {
         return issueService.updateMyIssue(id, request, user);
     }
 
-    @PutMapping("/assign/{issueId}")
+    @PutMapping("/{issueId}/assign")
     public IssueDTO assignIssue(@PathVariable Long issueId,
                                 @RequestBody AssignIssueRequest request,
                                 @AuthenticationPrincipal User admin) {
         return issueService.assignIssue(issueId, request.getEngineerId(), admin);
+    }
+
+    @PutMapping("/{id}/status")
+    public IssueDTO updateStatus(
+            @PathVariable Long id,
+            @RequestBody UpdateIssueStatusRequest request,
+            @AuthenticationPrincipal User user) {
+
+        return issueService.updateStatus(id, request, user);
+    }
+
+    @DeleteMapping("/delete/{id}")
+    public String deleteIssue(@PathVariable Long id,
+                              @AuthenticationPrincipal User user) {
+        issueService.deleteIssue(id, user);
+        return "Issue deleted successfully";
+    }
+
+    @GetMapping("/history")
+    public List<IssueDTO> getHistory(@AuthenticationPrincipal User user) {
+        return issueService.getHistory(user);
     }
 
 
