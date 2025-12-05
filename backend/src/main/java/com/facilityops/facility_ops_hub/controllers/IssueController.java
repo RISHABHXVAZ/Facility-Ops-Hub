@@ -29,12 +29,15 @@ public class IssueController {
         return issueService.getMyIssues(user);
     }
 
-
     @GetMapping("/assigned")
     public List<IssueDTO> assignedIssues(@AuthenticationPrincipal User user) {
 
-        if (user.getRole() != Role.ENGINEER && user.getRole() != Role.ADMIN)
-            throw new RuntimeException("Only engineers and admin can view assigned issues");
+        if (user.getRole() != Role.ENGINEER &&
+                user.getRole() != Role.ADMIN &&
+                user.getRole() != Role.SUPERVISOR)
+        {
+            throw new RuntimeException("Only engineers, admin, or supervisor can view assigned issues");
+        }
 
         return issueService.getAssignedIssues(user);
     }
@@ -42,8 +45,9 @@ public class IssueController {
     @GetMapping("/all")
     public List<IssueDTO> allIssues(@AuthenticationPrincipal User user) {
 
-        if (user.getRole() != Role.ADMIN)
-            throw new RuntimeException("Only admin can view all issues");
+        if (user.getRole() != Role.ADMIN && user.getRole() != Role.SUPERVISOR) {
+            throw new RuntimeException("Only admin or supervisor can view all issues");
+        }
 
         return issueService.getAllIssues();
     }
@@ -87,6 +91,4 @@ public class IssueController {
     public List<IssueDTO> getHistory(@AuthenticationPrincipal User user) {
         return issueService.getHistory(user);
     }
-
-
 }

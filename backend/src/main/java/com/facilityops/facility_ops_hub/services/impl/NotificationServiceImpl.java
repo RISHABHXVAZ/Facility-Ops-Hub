@@ -61,4 +61,20 @@ public class NotificationServiceImpl implements NotificationService {
         n.setReadStatus(true);
         notificationRepository.save(n);
     }
+
+    @Override
+    public long getUnreadCount(User user) {
+        return notificationRepository.countByUserAndReadStatusFalse(user);
+    }
+
+    @Override
+    public void markAllAsRead(User user) {
+        List<Notification> list = notificationRepository.findByUserOrderByTimestampDesc(user);
+        list.forEach(n -> n.setReadStatus(true));
+
+        notificationRepository.saveAll(list);
+
+        // After marking everything read, send unread = 0
+        messagingTemplate.convertAndSend("/topic/notifications/" + user.getId() + "/count", "0");
+    }
 }

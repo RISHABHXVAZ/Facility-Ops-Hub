@@ -34,16 +34,17 @@ public class IssueServiceImpl implements IssueService {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    // ----------------- WEBSOCKET HELPERS -----------------
+
     private void wsNotify(User user, String message) {
         messagingTemplate.convertAndSend("/topic/notifications/" + user.getId(), message);
     }
 
     private void wsNotifyRole(Role role, String message) {
-        userRepository.findByRole(role)
-                .forEach(u -> wsNotify(u, message));
+        userRepository.findByRole(role).forEach(u -> wsNotify(u, message));
     }
 
-
+    // ------------------------------------------------------
 
     @Override
     public IssueDTO createIssue(IssueRequest request, User user) {
@@ -57,15 +58,7 @@ public class IssueServiceImpl implements IssueService {
 
         issueRepository.save(issue);
 
-        String msg = "A new issue #" + issue.getId() + " was created by " + user.getName();
-
-// WS notify Admins
-        wsNotifyRole(Role.ADMIN, msg);
-
-// WS notify Supervisors
-        wsNotifyRole(Role.SUPERVISOR, msg);
-
-
+        // Activity log
         activityService.logActivity(
                 issue,
                 user,
@@ -73,10 +66,15 @@ public class IssueServiceImpl implements IssueService {
                 "Issue created by " + user.getName()
         );
 
+        String msg = "A new issue #" + issue.getId() + " was created by " + user.getName();
 
-        userRepository.findByRole(Role.ADMIN)
-                .forEach(admin -> notificationService.notify(admin,
-                        "A new issue was created by " + user.getName()));
+        // WS supervisor + admin notify
+        wsNotifyRole(Role.ADMIN, msg);
+        wsNotifyRole(Role.SUPERVISOR, msg);
+
+        // DB supervisor + admin notify
+        userRepository.findByRole(Role.ADMIN).forEach(a -> notificationService.notify(a, msg));
+        userRepository.findByRole(Role.SUPERVISOR).forEach(s -> notificationService.notify(s, msg));
 
         return convertToDTO(issue);
     }
@@ -84,38 +82,30 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public List<IssueDTO> getMyIssues(User user) {
         return issueRepository.findByCreatedBy(user)
-                .stream()
-                .map(this::convertToDTO)
-                .toList();
+                .stream().map(this::convertToDTO).toList();
     }
 
     @Override
     public List<IssueDTO> getAssignedIssues(User engineer) {
         return issueRepository.findByAssignedTo(engineer)
-                .stream()
-                .map(this::convertToDTO)
-                .toList();
+                .stream().map(this::convertToDTO).toList();
     }
 
     @Override
     public List<IssueDTO> getAllIssues() {
         return issueRepository.findAll()
-                .stream()
-                .map(this::convertToDTO)
-                .toList();
+                .stream().map(this::convertToDTO).toList();
     }
 
     @Override
     public IssueDTO getIssueById(Long id) {
         Issue issue = issueRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Issue not found"));
-
         return convertToDTO(issue);
     }
 
     private IssueDTO convertToDTO(Issue issue) {
         IssueDTO dto = new IssueDTO();
-
         dto.setId(issue.getId());
         dto.setTitle(issue.getTitle());
         dto.setDescription(issue.getDescription());
@@ -141,24 +131,20 @@ public class IssueServiceImpl implements IssueService {
 
         // Only creator can update
         if (!issue.getCreatedBy().getId().equals(user.getId())) {
-            throw new RuntimeException("You are not allowed to update this issue");
+            throw new RuntimeException("Not allowed to update");
         }
 
-        if (request.getTitle() != null)
-            issue.setTitle(request.getTitle());
-
-        if (request.getDescription() != null)
-            issue.setDescription(request.getDescription());
-
-        if (request.getPriority() != null)
-            issue.setPriority(request.getPriority());
+        if (request.getTitle() != null) issue.setTitle(request.getTitle());
+        if (request.getDescription() != null) issue.setDescription(request.getDescription());
+        if (request.getPriority() != null) issue.setPriority(request.getPriority());
 
         issue.setUpdatedAt(LocalDateTime.now());
         issueRepository.save(issue);
 
+        // WS notify supervisors + admins (but NOT self)
         String msg = "Issue #" + issue.getId() + " was updated by " + user.getName();
-        wsNotify(issue.getCreatedBy(), msg);
-
+        wsNotifyRole(Role.SUPERVISOR, msg);
+        wsNotifyRole(Role.ADMIN, msg);
 
         return convertToDTO(issue);
     }
@@ -166,10 +152,8 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public IssueDTO assignIssue(Long issueId, Long engineerId, User admin) {
 
-        // Only admin can assign
-        if (admin.getRole() != Role.ADMIN) {
-            throw new RuntimeException("Only admin can assign issues");
-        }
+        if (admin.getRole() != Role.ADMIN)
+            throw new RuntimeException("Only admin can assign");
 
         Issue issue = issueRepository.findById(issueId)
                 .orElseThrow(() -> new RuntimeException("Issue not found"));
@@ -177,9 +161,8 @@ public class IssueServiceImpl implements IssueService {
         User engineer = userRepository.findById(engineerId)
                 .orElseThrow(() -> new RuntimeException("Engineer not found"));
 
-        if (engineer.getRole() != Role.ENGINEER) {
-            throw new RuntimeException("Selected user is not an engineer");
-        }
+        if (engineer.getRole() != Role.ENGINEER)
+            throw new RuntimeException("User is not an engineer");
 
         issue.setAssignedTo(engineer);
         issue.setStatus(IssueStatus.ASSIGNED);
@@ -193,14 +176,11 @@ public class IssueServiceImpl implements IssueService {
                 "Assigned to engineer: " + engineer.getName()
         );
 
+        String msg = "You have been assigned issue #" + issue.getId();
 
-        // DB notification
-        notificationService.notify(engineer,
-                "You have been assigned issue #" + issue.getId());
-
-// WS notification
-        wsNotify(engineer, "You have been assigned issue #" + issue.getId());
-
+        // DB + WS notify
+        notificationService.notify(engineer, msg);
+        wsNotify(engineer, msg);
 
         return convertToDTO(issue);
     }
@@ -214,26 +194,21 @@ public class IssueServiceImpl implements IssueService {
         IssueStatus newStatus = request.getStatus();
         IssueStatus current = issue.getStatus();
 
-        // Only engineer assigned or admin
-        if (user.getRole() != Role.ENGINEER && user.getRole() != Role.ADMIN) {
-            throw new RuntimeException("Only engineers or admin can update status");
-        }
+        if (user.getRole() != Role.ENGINEER && user.getRole() != Role.ADMIN)
+            throw new RuntimeException("Not allowed");
 
         if (user.getRole() == Role.ENGINEER &&
-                (issue.getAssignedTo() == null || !issue.getAssignedTo().getId().equals(user.getId()))) {
-            throw new RuntimeException("You are not assigned to this issue");
-        }
+                (issue.getAssignedTo() == null || !issue.getAssignedTo().getId().equals(user.getId())))
+            throw new RuntimeException("You are not assigned");
 
-        // Allowed transitions
         boolean valid =
                 (current == IssueStatus.OPEN && newStatus == IssueStatus.ASSIGNED) ||
                         (current == IssueStatus.ASSIGNED && newStatus == IssueStatus.IN_PROGRESS) ||
                         (current == IssueStatus.IN_PROGRESS && newStatus == IssueStatus.COMPLETED) ||
                         (current == IssueStatus.COMPLETED && newStatus == IssueStatus.CLOSED);
 
-        if (!valid) {
-            throw new RuntimeException("Invalid status transition");
-        }
+        if (!valid)
+            throw new RuntimeException("Invalid transition");
 
         issue.setStatus(newStatus);
         issue.setUpdatedAt(LocalDateTime.now());
@@ -246,104 +221,78 @@ public class IssueServiceImpl implements IssueService {
                 "Status changed to " + newStatus
         );
 
-        //  =======================
-        //    REAL-TIME NOTIFY
-        //  =======================
+        // ---------- CLOSED LOGIC ----------
         if (newStatus == IssueStatus.CLOSED) {
 
             String msg = "Issue #" + issueId + " has been CLOSED by " + user.getName();
 
-            // Ranger
             wsNotify(issue.getCreatedBy(), msg);
-
-            // Admins
             wsNotifyRole(Role.ADMIN, msg);
-
-            // Supervisors
             wsNotifyRole(Role.SUPERVISOR, msg);
 
             return convertToDTO(issue);
         }
 
+        // ---------- NORMAL STATUS UPDATE ----------
+        String msg = "Status updated for issue #" + issue.getId() + " → " + newStatus;
 
-        // For OTHER status updates, only send DB notification
-        notificationService.notify(issue.getCreatedBy(),
-                "Status updated for issue #" + issue.getId() + " → " + newStatus);
-        wsNotify(issue.getCreatedBy(),
-                "Status updated for issue #" + issue.getId() + " → " + newStatus);
-
+        notificationService.notify(issue.getCreatedBy(), msg);
+        wsNotify(issue.getCreatedBy(), msg);
 
         return convertToDTO(issue);
     }
-
 
     @Override
     public void deleteIssue(Long issueId, User user) {
 
         Issue issue = issueRepository.findById(issueId)
-                .orElseThrow(() -> new RuntimeException("Issue not found"));
+                .orElseThrow(() -> new RuntimeException("Not found"));
 
         if (user.getRole() == Role.ADMIN) {
+
             issueRepository.delete(issue);
-            activityService.logActivity(
-                    issue,
-                    user,
-                    ActivityType.ISSUE_CLOSED,
-                    "Issue deleted by " + user.getName()
-            );
+
             String msg = "Issue #" + issueId + " was deleted by Admin " + user.getName();
 
-            wsNotify(issue.getCreatedBy(), msg);   // notify Ranger
-            wsNotifyRole(Role.ADMIN, msg);         // notify all admins
+            wsNotify(issue.getCreatedBy(), msg);
+            wsNotifyRole(Role.ADMIN, msg);
+            wsNotifyRole(Role.SUPERVISOR, msg);
 
-
+            activityService.logActivity(issue, user, ActivityType.ISSUE_CLOSED, msg);
             return;
         }
 
         if (issue.getCreatedBy().getId().equals(user.getId())) {
 
-            if (issue.getStatus() != IssueStatus.OPEN) {
-                throw new RuntimeException("You can only delete issues that are still OPEN");
-            }
+            if (issue.getStatus() != IssueStatus.OPEN)
+                throw new RuntimeException("Can delete only OPEN issues");
 
             issueRepository.delete(issue);
-            activityService.logActivity(
-                    issue,
-                    user,
-                    ActivityType.ISSUE_CLOSED,
-                    "Issue deleted by " + user.getName()
-            );
+
             String msg = "Issue #" + issueId + " was deleted by " + user.getName();
 
-            wsNotifyRole(Role.ADMIN, msg);        // notify admins
+            wsNotifyRole(Role.ADMIN, msg);
+            wsNotifyRole(Role.SUPERVISOR, msg);
 
-
+            activityService.logActivity(issue, user, ActivityType.ISSUE_CLOSED, msg);
             return;
         }
 
-        throw new RuntimeException("You are not allowed to delete this issue");
+        throw new RuntimeException("Not allowed");
     }
 
     @Override
     public List<IssueDTO> getHistory(User user) {
 
-        if (user.getRole() == Role.ADMIN) {
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.SUPERVISOR)
             return issueRepository.findAll()
-                    .stream()
-                    .map(this::convertToDTO)
-                    .toList();
-        }
+                    .stream().map(this::convertToDTO).toList();
 
-        if (user.getRole() == Role.ENGINEER) {
+        if (user.getRole() == Role.ENGINEER)
             return issueRepository.findByAssignedTo(user)
-                    .stream()
-                    .map(this::convertToDTO)
-                    .toList();
-        }
+                    .stream().map(this::convertToDTO).toList();
 
         return issueRepository.findByCreatedBy(user)
-                .stream()
-                .map(this::convertToDTO)
-                .toList();
+                .stream().map(this::convertToDTO).toList();
     }
 }
