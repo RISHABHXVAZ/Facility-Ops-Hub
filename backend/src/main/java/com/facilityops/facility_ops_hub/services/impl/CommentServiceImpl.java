@@ -9,6 +9,7 @@ import com.facilityops.facility_ops_hub.models.enums.Role;
 import com.facilityops.facility_ops_hub.repositories.CommentRepository;
 import com.facilityops.facility_ops_hub.repositories.IssueRepository;
 import com.facilityops.facility_ops_hub.services.CommentService;
+import com.facilityops.facility_ops_hub.services.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +21,7 @@ public class CommentServiceImpl implements CommentService {
 
     private final IssueRepository issueRepository;
     private final CommentRepository commentRepository;
+    private NotificationService notificationService;
 
     @Override
     public CommentDTO addComment(Long issueId, CommentRequest request, User user) {
@@ -47,6 +49,21 @@ public class CommentServiceImpl implements CommentService {
         c.setIssue(issue);
 
         commentRepository.save(c);
+
+        // Notify issue creator
+        if (!user.getId().equals(issue.getCreatedBy().getId())) {
+            notificationService.notify(issue.getCreatedBy(),
+                    user.getName() + " commented on your issue #" + issue.getId());
+        }
+
+// Notify engineer
+        if (issue.getAssignedTo() != null &&
+                !user.getId().equals(issue.getAssignedTo().getId())) {
+
+            notificationService.notify(issue.getAssignedTo(),
+                    user.getName() + " added a comment on issue #" + issue.getId());
+        }
+
 
         return convertToDTO(c);
     }

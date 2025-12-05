@@ -9,8 +9,10 @@ import com.facilityops.facility_ops_hub.models.dto.UpdateIssueStatusRequest;
 import com.facilityops.facility_ops_hub.models.enums.IssueStatus;
 import com.facilityops.facility_ops_hub.models.enums.Role;
 import com.facilityops.facility_ops_hub.repositories.IssueRepository;
+import com.facilityops.facility_ops_hub.repositories.NotificationRepository;
 import com.facilityops.facility_ops_hub.repositories.UserRepository;
 import com.facilityops.facility_ops_hub.services.IssueService;
+import com.facilityops.facility_ops_hub.services.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,7 @@ public class IssueServiceImpl implements IssueService {
 
     private final UserRepository userRepository;
     private final IssueRepository issueRepository;
+    private final NotificationService notificationService;
 
     @Override
     public IssueDTO createIssue(IssueRequest request, User user) {
@@ -36,6 +39,11 @@ public class IssueServiceImpl implements IssueService {
         issue.setCreatedBy(user);
 
         issueRepository.save(issue);
+        userRepository.findByRole(Role.ADMIN)
+                .forEach(admin -> notificationService.notify(admin,
+                        "A new issue was created by " + user.getName()));
+
+
 
         return convertToDTO(issue);
     }
@@ -143,6 +151,9 @@ public class IssueServiceImpl implements IssueService {
 
         Issue saved = issueRepository.save(issue);
 
+        notificationService.notify(engineer,
+                "You have been assigned issue #" + issue.getId());
+
         return convertToDTO(saved);
     }
 
@@ -189,6 +200,10 @@ public class IssueServiceImpl implements IssueService {
         issue.setUpdatedAt(LocalDateTime.now());
 
         issueRepository.save(issue);
+
+        notificationService.notify(issue.getCreatedBy(),
+                "Status updated for issue #" + issue.getId() + " → " + newStatus);
+
 
         return convertToDTO(issue);
     }
