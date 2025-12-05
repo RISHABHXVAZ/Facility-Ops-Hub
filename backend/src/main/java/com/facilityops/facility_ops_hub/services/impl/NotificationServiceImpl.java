@@ -6,6 +6,7 @@ import com.facilityops.facility_ops_hub.models.dto.NotificationDTO;
 import com.facilityops.facility_ops_hub.repositories.NotificationRepository;
 import com.facilityops.facility_ops_hub.services.NotificationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.List;
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     public void notify(User user, String message) {
@@ -24,6 +26,11 @@ public class NotificationServiceImpl implements NotificationService {
         n.setMessage(message);
 
         notificationRepository.save(n);
+
+        messagingTemplate.convertAndSend(
+                "/topic/notifications/" + user.getId(),
+                message
+        );
     }
 
     @Override

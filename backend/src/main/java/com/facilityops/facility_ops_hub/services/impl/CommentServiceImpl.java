@@ -5,10 +5,12 @@ import com.facilityops.facility_ops_hub.models.Issue;
 import com.facilityops.facility_ops_hub.models.User;
 import com.facilityops.facility_ops_hub.models.dto.CommentDTO;
 import com.facilityops.facility_ops_hub.models.dto.CommentRequest;
+import com.facilityops.facility_ops_hub.models.enums.ActivityType;
 import com.facilityops.facility_ops_hub.models.enums.Role;
 import com.facilityops.facility_ops_hub.repositories.CommentRepository;
 import com.facilityops.facility_ops_hub.repositories.IssueRepository;
 import com.facilityops.facility_ops_hub.services.CommentService;
+import com.facilityops.facility_ops_hub.services.IssueActivityService;
 import com.facilityops.facility_ops_hub.services.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ public class CommentServiceImpl implements CommentService {
     private final IssueRepository issueRepository;
     private final CommentRepository commentRepository;
     private NotificationService notificationService;
+    private final IssueActivityService activityService;
 
     @Override
     public CommentDTO addComment(Long issueId, CommentRequest request, User user) {
@@ -49,6 +52,14 @@ public class CommentServiceImpl implements CommentService {
         c.setIssue(issue);
 
         commentRepository.save(c);
+
+        activityService.logActivity(
+                issue,
+                user,
+                ActivityType.COMMENT_ADDED,
+                "Added a comment"
+        );
+
 
         // Notify issue creator
         if (!user.getId().equals(issue.getCreatedBy().getId())) {

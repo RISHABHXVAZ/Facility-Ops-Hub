@@ -26,12 +26,31 @@ public class WebSecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
+                        // Allow auth API
                         .requestMatchers("/api/auth/**").permitAll()
+
+                        // Allow WebSocket handshake
+                        .requestMatchers("/ws/**").permitAll()
+
+                        // Allow STOMP message broker endpoints (topics)
+                        .requestMatchers("/topic/**", "/queue/**").permitAll()
+
+                        // Allow static files (HTML, JS, CSS)
+                        .requestMatchers(
+                                "/ws-test.html",
+                                "/**/*.html",
+                                "/**/*.js",
+                                "/**/*.css",
+                                "/static/**"
+                        ).permitAll()
+
+                        // Everything else requires authentication
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-       http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+        // Add JWT filter
+        http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

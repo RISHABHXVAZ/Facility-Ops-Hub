@@ -6,15 +6,17 @@ import com.facilityops.facility_ops_hub.models.dto.IssueDTO;
 import com.facilityops.facility_ops_hub.models.dto.IssueRequest;
 import com.facilityops.facility_ops_hub.models.dto.UpdateIssueRequest;
 import com.facilityops.facility_ops_hub.models.dto.UpdateIssueStatusRequest;
+import com.facilityops.facility_ops_hub.models.enums.ActivityType;
 import com.facilityops.facility_ops_hub.models.enums.IssueStatus;
 import com.facilityops.facility_ops_hub.models.enums.Role;
 import com.facilityops.facility_ops_hub.repositories.IssueRepository;
-import com.facilityops.facility_ops_hub.repositories.NotificationRepository;
 import com.facilityops.facility_ops_hub.repositories.UserRepository;
+import com.facilityops.facility_ops_hub.services.IssueActivityService;
 import com.facilityops.facility_ops_hub.services.IssueService;
 import com.facilityops.facility_ops_hub.services.NotificationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -27,6 +29,21 @@ public class IssueServiceImpl implements IssueService {
     private final UserRepository userRepository;
     private final IssueRepository issueRepository;
     private final NotificationService notificationService;
+    private final IssueActivityService activityService;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
+
+    private void wsNotify(User user, String message) {
+        messagingTemplate.convertAndSend("/topic/notifications/" + user.getId(), message);
+    }
+
+    private void wsNotifyRole(Role role, String message) {
+        userRepository.findByRole(role)
+                .forEach(u -> wsNotify(u, message));
+    }
+
+
 
     @Override
     public IssueDTO createIssue(IssueRequest request, User user) {
@@ -39,11 +56,27 @@ public class IssueServiceImpl implements IssueService {
         issue.setCreatedBy(user);
 
         issueRepository.save(issue);
+
+        String msg = "A new issue #" + issue.getId() + " was created by " + user.getName();
+
+// WS notify Admins
+        wsNotifyRole(Role.ADMIN, msg);
+
+// WS notify Supervisors
+        wsNotifyRole(Role.SUPERVISOR, msg);
+
+
+        activityService.logActivity(
+                issue,
+                user,
+                ActivityType.ISSUE_CREATED,
+                "Issue created by " + user.getName()
+        );
+
+
         userRepository.findByRole(Role.ADMIN)
                 .forEach(admin -> notificationService.notify(admin,
                         "A new issue was created by " + user.getName()));
-
-
 
         return convertToDTO(issue);
     }
@@ -80,8 +113,6 @@ public class IssueServiceImpl implements IssueService {
         return convertToDTO(issue);
     }
 
-
-
     private IssueDTO convertToDTO(Issue issue) {
         IssueDTO dto = new IssueDTO();
 
@@ -101,13 +132,14 @@ public class IssueServiceImpl implements IssueService {
 
         return dto;
     }
+
     @Override
     public IssueDTO updateMyIssue(Long issueId, UpdateIssueRequest request, User user) {
 
         Issue issue = issueRepository.findById(issueId)
                 .orElseThrow(() -> new RuntimeException("Issue not found"));
 
-        // Only issue creator can update their issue
+        // Only creator can update
         if (!issue.getCreatedBy().getId().equals(user.getId())) {
             throw new RuntimeException("You are not allowed to update this issue");
         }
@@ -122,9 +154,13 @@ public class IssueServiceImpl implements IssueService {
             issue.setPriority(request.getPriority());
 
         issue.setUpdatedAt(LocalDateTime.now());
+        issueRepository.save(issue);
 
-        Issue updated = issueRepository.save(issue);
-        return convertToDTO(updated);
+        String msg = "Issue #" + issue.getId() + " was updated by " + user.getName();
+        wsNotify(issue.getCreatedBy(), msg);
+
+
+        return convertToDTO(issue);
     }
 
     @Override
@@ -148,13 +184,25 @@ public class IssueServiceImpl implements IssueService {
         issue.setAssignedTo(engineer);
         issue.setStatus(IssueStatus.ASSIGNED);
         issue.setUpdatedAt(LocalDateTime.now());
+        issueRepository.save(issue);
 
-        Issue saved = issueRepository.save(issue);
+        activityService.logActivity(
+                issue,
+                admin,
+                ActivityType.ASSIGNED_TO_USER,
+                "Assigned to engineer: " + engineer.getName()
+        );
 
+
+        // DB notification
         notificationService.notify(engineer,
                 "You have been assigned issue #" + issue.getId());
 
-        return convertToDTO(saved);
+// WS notification
+        wsNotify(engineer, "You have been assigned issue #" + issue.getId());
+
+
+        return convertToDTO(issue);
     }
 
     @Override
@@ -164,49 +212,70 @@ public class IssueServiceImpl implements IssueService {
                 .orElseThrow(() -> new RuntimeException("Issue not found"));
 
         IssueStatus newStatus = request.getStatus();
+        IssueStatus current = issue.getStatus();
 
-        // Only engineer assigned OR admin can update
+        // Only engineer assigned or admin
         if (user.getRole() != Role.ENGINEER && user.getRole() != Role.ADMIN) {
             throw new RuntimeException("Only engineers or admin can update status");
         }
 
-        // Engineer check
-        if (user.getRole() == Role.ENGINEER) {
-            if (issue.getAssignedTo() == null || !issue.getAssignedTo().getId().equals(user.getId())) {
-                throw new RuntimeException("You are not assigned to this issue");
-            }
+        if (user.getRole() == Role.ENGINEER &&
+                (issue.getAssignedTo() == null || !issue.getAssignedTo().getId().equals(user.getId()))) {
+            throw new RuntimeException("You are not assigned to this issue");
         }
 
         // Allowed transitions
-        IssueStatus current = issue.getStatus();
+        boolean valid =
+                (current == IssueStatus.OPEN && newStatus == IssueStatus.ASSIGNED) ||
+                        (current == IssueStatus.ASSIGNED && newStatus == IssueStatus.IN_PROGRESS) ||
+                        (current == IssueStatus.IN_PROGRESS && newStatus == IssueStatus.COMPLETED) ||
+                        (current == IssueStatus.COMPLETED && newStatus == IssueStatus.CLOSED);
 
-        boolean valid = false;
+        if (!valid) {
+            throw new RuntimeException("Invalid status transition");
+        }
 
-        if (current == IssueStatus.OPEN && newStatus == IssueStatus.ASSIGNED)
-            valid = true;
-
-        if (current == IssueStatus.ASSIGNED && newStatus == IssueStatus.IN_PROGRESS)
-            valid = true;
-
-        if (current == IssueStatus.IN_PROGRESS && newStatus == IssueStatus.COMPLETED)
-            valid = true;
-
-        if (current == IssueStatus.COMPLETED && newStatus == IssueStatus.CLOSED)
-            valid = true;
-
-
-        // Update status
         issue.setStatus(newStatus);
         issue.setUpdatedAt(LocalDateTime.now());
-
         issueRepository.save(issue);
 
+        activityService.logActivity(
+                issue,
+                user,
+                ActivityType.STATUS_CHANGED,
+                "Status changed to " + newStatus
+        );
+
+        //  =======================
+        //    REAL-TIME NOTIFY
+        //  =======================
+        if (newStatus == IssueStatus.CLOSED) {
+
+            String msg = "Issue #" + issueId + " has been CLOSED by " + user.getName();
+
+            // Ranger
+            wsNotify(issue.getCreatedBy(), msg);
+
+            // Admins
+            wsNotifyRole(Role.ADMIN, msg);
+
+            // Supervisors
+            wsNotifyRole(Role.SUPERVISOR, msg);
+
+            return convertToDTO(issue);
+        }
+
+
+        // For OTHER status updates, only send DB notification
         notificationService.notify(issue.getCreatedBy(),
+                "Status updated for issue #" + issue.getId() + " → " + newStatus);
+        wsNotify(issue.getCreatedBy(),
                 "Status updated for issue #" + issue.getId() + " → " + newStatus);
 
 
         return convertToDTO(issue);
     }
+
 
     @Override
     public void deleteIssue(Long issueId, User user) {
@@ -216,6 +285,18 @@ public class IssueServiceImpl implements IssueService {
 
         if (user.getRole() == Role.ADMIN) {
             issueRepository.delete(issue);
+            activityService.logActivity(
+                    issue,
+                    user,
+                    ActivityType.ISSUE_CLOSED,
+                    "Issue deleted by " + user.getName()
+            );
+            String msg = "Issue #" + issueId + " was deleted by Admin " + user.getName();
+
+            wsNotify(issue.getCreatedBy(), msg);   // notify Ranger
+            wsNotifyRole(Role.ADMIN, msg);         // notify all admins
+
+
             return;
         }
 
@@ -226,6 +307,17 @@ public class IssueServiceImpl implements IssueService {
             }
 
             issueRepository.delete(issue);
+            activityService.logActivity(
+                    issue,
+                    user,
+                    ActivityType.ISSUE_CLOSED,
+                    "Issue deleted by " + user.getName()
+            );
+            String msg = "Issue #" + issueId + " was deleted by " + user.getName();
+
+            wsNotifyRole(Role.ADMIN, msg);        // notify admins
+
+
             return;
         }
 
@@ -235,7 +327,6 @@ public class IssueServiceImpl implements IssueService {
     @Override
     public List<IssueDTO> getHistory(User user) {
 
-        // ADMIN → full history
         if (user.getRole() == Role.ADMIN) {
             return issueRepository.findAll()
                     .stream()
@@ -243,7 +334,6 @@ public class IssueServiceImpl implements IssueService {
                     .toList();
         }
 
-        // ENGINEER → all issues ever assigned to them
         if (user.getRole() == Role.ENGINEER) {
             return issueRepository.findByAssignedTo(user)
                     .stream()
@@ -251,12 +341,9 @@ public class IssueServiceImpl implements IssueService {
                     .toList();
         }
 
-        // USER → all issues created by them
         return issueRepository.findByCreatedBy(user)
                 .stream()
                 .map(this::convertToDTO)
                 .toList();
     }
-
-
 }
