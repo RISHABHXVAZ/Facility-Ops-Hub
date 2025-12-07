@@ -25,35 +25,28 @@ public class WebSecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(request -> {
+                    var corsConfig = new org.springframework.web.cors.CorsConfiguration();
+                    corsConfig.addAllowedOrigin("http://localhost:5173");
+                    corsConfig.addAllowedMethod("*");
+                    corsConfig.addAllowedHeader("*");
+                    corsConfig.setAllowCredentials(true);
+                    return corsConfig;
+                }))
                 .authorizeHttpRequests(auth -> auth
-                        // Allow auth API
                         .requestMatchers("/api/auth/**").permitAll()
-
-                        // Allow WebSocket handshake
                         .requestMatchers("/ws/**").permitAll()
-
-                        // Allow STOMP message broker endpoints (topics)
                         .requestMatchers("/topic/**", "/queue/**").permitAll()
-
-                        // Allow static files (HTML, JS, CSS)
-                        .requestMatchers(
-                                "/ws-test.html",
-                                "/**/*.html",
-                                "/**/*.js",
-                                "/**/*.css",
-                                "/static/**"
-                        ).permitAll()
-
-                        // Everything else requires authentication
+                        .requestMatchers("/ws-test.html", "/**/*.html", "/**/*.js", "/**/*.css", "/static/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-        // Add JWT filter
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
+
 
     @Bean
     public PasswordEncoder passwordEncoder() {
