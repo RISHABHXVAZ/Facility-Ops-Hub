@@ -20,7 +20,6 @@ public class Notification {
     @Column(name = "read_status", nullable = false)
     private boolean readStatus = false;
 
-
     private LocalDateTime timestamp = LocalDateTime.now();
 
     @ManyToOne

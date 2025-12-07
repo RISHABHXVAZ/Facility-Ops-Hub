@@ -28,4 +28,15 @@ public class NotificationController {
         notificationService.markAsRead(id, user);
         return "Notification marked as read";
     }
+
+    @GetMapping("/unread-count")
+    public long getUnreadCount(@AuthenticationPrincipal User user) {
+        return notificationService.getUnreadCount(user);
+    }
+
+    @PutMapping("/read-all")
+    public String markAllAsRead(@AuthenticationPrincipal User user) {
+        notificationService.markAllAsRead(user);
+        return "All notifications marked as read";
+    }
 }
