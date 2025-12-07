@@ -37,7 +37,15 @@ public class Issue {
 
     private LocalDateTime updatedAt;
 
+    // SLA system fields
+// SLA system fields
     private LocalDateTime slaDeadline;
+
+    @Column(nullable = false)
+    private boolean slaBreached = false;
+
+    private LocalDateTime slaBreachedAt;
+
 
     @ManyToOne
     private User createdBy;

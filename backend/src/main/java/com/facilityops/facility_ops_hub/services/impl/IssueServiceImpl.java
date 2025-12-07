@@ -34,7 +34,6 @@ public class IssueServiceImpl implements IssueService {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
-    // ----------------- WEBSOCKET HELPERS -----------------
 
     private void wsNotify(User user, String message) {
         messagingTemplate.convertAndSend("/topic/notifications/" + user.getId(), message);
@@ -44,7 +43,6 @@ public class IssueServiceImpl implements IssueService {
         userRepository.findByRole(role).forEach(u -> wsNotify(u, message));
     }
 
-    // ------------------------------------------------------
 
     @Override
     public IssueDTO createIssue(IssueRequest request, User user) {
@@ -58,7 +56,6 @@ public class IssueServiceImpl implements IssueService {
 
         issueRepository.save(issue);
 
-        // Activity log
         activityService.logActivity(
                 issue,
                 user,
@@ -75,6 +72,19 @@ public class IssueServiceImpl implements IssueService {
         // DB supervisor + admin notify
         userRepository.findByRole(Role.ADMIN).forEach(a -> notificationService.notify(a, msg));
         userRepository.findByRole(Role.SUPERVISOR).forEach(s -> notificationService.notify(s, msg));
+
+        LocalDateTime now = LocalDateTime.now();
+
+        switch (issue.getPriority()) {
+            case CRITICAL -> issue.setSlaDeadline(now.plusHours(4));
+            case HIGH     -> issue.setSlaDeadline(now.plusHours(24));
+            case MEDIUM   -> issue.setSlaDeadline(now.plusHours(48));
+            case LOW      -> issue.setSlaDeadline(now.plusHours(72));
+        }
+
+        issueRepository.save(issue);
+
+
 
         return convertToDTO(issue);
     }
@@ -224,6 +234,17 @@ public class IssueServiceImpl implements IssueService {
         // ---------- CLOSED LOGIC ----------
         if (newStatus == IssueStatus.CLOSED) {
 
+            // stop SLA timer
+            if (LocalDateTime.now().isBefore(issue.getSlaDeadline())) {
+                issue.setSlaBreached(false);
+            }
+
+            // already breached? keep as it is
+            // else no need to update
+
+            issueRepository.save(issue);  // 🔥 important
+
+
             String msg = "Issue #" + issueId + " has been CLOSED by " + user.getName();
 
             wsNotify(issue.getCreatedBy(), msg);
@@ -233,7 +254,6 @@ public class IssueServiceImpl implements IssueService {
             return convertToDTO(issue);
         }
 
-        // ---------- NORMAL STATUS UPDATE ----------
         String msg = "Status updated for issue #" + issue.getId() + " → " + newStatus;
 
         notificationService.notify(issue.getCreatedBy(), msg);
