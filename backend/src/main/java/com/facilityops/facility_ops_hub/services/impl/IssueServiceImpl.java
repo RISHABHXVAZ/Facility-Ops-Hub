@@ -130,6 +130,10 @@ public class IssueServiceImpl implements IssueService {
         if (issue.getAssignedTo() != null)
             dto.setAssignedToId(issue.getAssignedTo().getId());
 
+        dto.setSlaDeadline(issue.getSlaDeadline());
+        dto.setSlaBreached(issue.isSlaBreached());
+        dto.setSlaBreachedAt(issue.getSlaBreachedAt());
+
         return dto;
     }
 

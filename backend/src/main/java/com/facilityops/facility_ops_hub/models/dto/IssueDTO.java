@@ -22,4 +22,8 @@ public class IssueDTO {
 
     private Long createdById;
     private Long assignedToId;
+
+    private LocalDateTime slaDeadline;
+    private Boolean slaBreached;
+    private LocalDateTime slaBreachedAt;
 }
