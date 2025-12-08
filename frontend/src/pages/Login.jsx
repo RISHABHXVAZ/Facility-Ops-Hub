@@ -10,22 +10,30 @@ export default function Login() {
   const navigate = useNavigate();
 
   const handleLogin = async () => {
-    try {
-      setErrorMessage("");
+  try {
+    setErrorMessage("");
 
-      const res = await loginUser({ email, password });
+    const res = await loginUser({ email, password });
 
-      // Save token + role to localStorage
-      localStorage.setItem("token", res.token);
-      localStorage.setItem("role", res.role);
-      localStorage.setItem("name", res.name);
+    localStorage.setItem("token", res.token);
+    localStorage.setItem("role", res.role);
+    localStorage.setItem(
+      "user",
+      JSON.stringify({
+        id: res.id,
+        name: res.name,
+        email: res.email,
+        role: res.role
+      })
+    );
 
-      // Redirect based on role
-      navigate("/" + res.role.toLowerCase());
-    } catch (err) {
-      setErrorMessage("New user? Register first");
-    }
-  };
+    navigate("/" + res.role.toLowerCase());
+  } catch (err) {
+    console.error(err);
+    setErrorMessage("New user? Register first");
+  }
+};
+
 
   return (
     <Box
