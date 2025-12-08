@@ -1,25 +1,67 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/axios";
-import ReportIssueModal from "../components/ReportIssueModal";
 import {
   Box,
   Typography,
   Button,
   Chip,
-  Card
+  Card,
+  Drawer,
+  TextField,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  Avatar,
+  Badge
 } from "@mui/material";
+
+import SendIcon from "@mui/icons-material/Send";
 
 export default function RangerDashboard() {
   const [issues, setIssues] = useState([]);
   const [filter, setFilter] = useState("ALL");
   const [openModal, setOpenModal] = useState(false);
 
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+  const [commentCounts, setCommentCounts] = useState({});
+
   const user = JSON.parse(localStorage.getItem("user"));
 
-  // Load issues from backend
+  // Load issues
   const loadIssues = async () => {
     const res = await api.get("/api/issues/my");
     setIssues(res.data);
+
+    // Load comment counts for each issue
+    const counts = {};
+    for (let issue of res.data) {
+      const res2 = await api.get(`/api/issues/${issue.id}/comments`);
+      counts[issue.id] = res2.data.length;
+    }
+    setCommentCounts(counts);
+  };
+
+  // Load comments of selected issue
+  const loadComments = async (issueId) => {
+    const res = await api.get(`/api/issues/${issueId}/comments`);
+    setComments(res.data);
+  };
+
+  // Add comment
+  const submitComment = async () => {
+    if (!newComment.trim()) return;
+
+    await api.post(`/api/issues/${selectedIssue.id}/comments`, {
+      message: newComment,
+    });
+
+    setNewComment("");
+    loadComments(selectedIssue.id); // refresh comment list
+    loadIssues(); // refresh comment counts
   };
 
   useEffect(() => {
@@ -30,8 +72,15 @@ export default function RangerDashboard() {
     filter === "ALL" ? true : i.status === filter
   );
 
+  const openCommentDrawer = (issue) => {
+    setSelectedIssue(issue);
+    loadComments(issue.id);
+    setCommentDrawerOpen(true);
+  };
+
   return (
     <Box sx={{ display: "flex", height: "100vh", background: "#0D0F1A" }}>
+      
       {/* SIDEBAR */}
       <Box
         sx={{
@@ -43,13 +92,11 @@ export default function RangerDashboard() {
           justifyContent: "space-between",
         }}
       >
-        {/* Top Section */}
         <Box>
           <Typography variant="h5" sx={{ color: "#7D3CFF", mb: 4 }}>
             Facility Ops
           </Typography>
 
-          {/* Dashboard Button */}
           <Button
             fullWidth
             variant="contained"
@@ -58,14 +105,10 @@ export default function RangerDashboard() {
               background: "linear-gradient(to right, #7D3CFF, #00E6FF)",
               color: "white",
             }}
-            onClick={() => {
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
           >
             Dashboard
           </Button>
 
-          {/* My Issues Button */}
           <Button
             fullWidth
             variant="contained"
@@ -74,8 +117,7 @@ export default function RangerDashboard() {
               color: "white",
             }}
             onClick={() => {
-              document
-                .getElementById("my-issues")
+              document.getElementById("my-issues")
                 .scrollIntoView({ behavior: "smooth" });
             }}
           >
@@ -83,7 +125,7 @@ export default function RangerDashboard() {
           </Button>
         </Box>
 
-        {/* User Info Section */}
+        {/* USER SECTION */}
         <Box sx={{ textAlign: "center", mt: 3 }}>
           <Box
             sx={{
@@ -102,7 +144,6 @@ export default function RangerDashboard() {
             </Typography>
           </Box>
 
-          {/* Logout */}
           <Button
             color="error"
             variant="outlined"
@@ -119,106 +160,100 @@ export default function RangerDashboard() {
 
       {/* MAIN CONTENT */}
       <Box sx={{ flex: 1, p: 4, color: "white", overflowY: "auto" }}>
-        
-        {/* Welcome */}
+
+        {/* HEADER */}
         <Typography variant="h4" fontWeight="bold">
           Welcome {user?.name},
         </Typography>
-
         <Typography sx={{ mt: 1, mb: 3, color: "gray" }}>
           Report and track facility issues
         </Typography>
 
-        {/* Report Button */}
-        <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-          <Button
-            variant="contained"
-            sx={{
-              background: "linear-gradient(to right, #7D3CFF, #00E6FF)",
-            }}
-            onClick={() => setOpenModal(true)}
-          >
-            + Report New Issue
-          </Button>
-        </Box>
-
-        {/* Stats */}
-        <Box sx={{ display: "flex", gap: 3, mt: 3 }}>
-          <StatCard title="Total Issues" value={issues.length} />
-          <StatCard
-            title="Open"
-            value={issues.filter((i) => i.status === "OPEN").length}
-          />
-          <StatCard
-            title="In Progress"
-            value={issues.filter((i) => i.status === "IN_PROGRESS").length}
-          />
-          <StatCard
-            title="Completed"
-            value={issues.filter((i) => i.status === "COMPLETED").length}
-          />
-        </Box>
-
-        {/* Filters */}
-        <Box sx={{ display: "flex", gap: 2, mt: 4 }}>
-          {["ALL", "OPEN", "IN_PROGRESS", "COMPLETED"].map((f) => (
-            <Button
-              key={f}
-              variant={filter === f ? "contained" : "outlined"}
-              sx={{
-                color: "white",
-                borderColor: "#7D3CFF",
-                background:
-                  filter === f
-                    ? "linear-gradient(to right, #7D3CFF, #00E6FF)"
-                    : "transparent",
-              }}
-              onClick={() => setFilter(f)}
-            >
-              {f === "ALL" ? "All" : f.replace("_", " ")}
-            </Button>
-          ))}
-        </Box>
-
-        {/* My Issues */}
+        {/* My Issues Section */}
         <Typography id="my-issues" variant="h5" sx={{ mt: 4, mb: 2 }}>
           My Issues
         </Typography>
 
         {filteredIssues.map((issue) => (
-          <IssueCard key={issue.id} issue={issue} />
+          <IssueCard
+            key={issue.id}
+            issue={issue}
+            commentCount={commentCounts[issue.id] || 0}
+            onOpenComments={() => openCommentDrawer(issue)}
+          />
         ))}
       </Box>
 
-      {/* Modal */}
-      <ReportIssueModal
-        open={openModal}
-        onClose={() => setOpenModal(false)}
-        onCreated={loadIssues}
-      />
+      {/* COMMENT DRAWER */}
+      <Drawer
+        anchor="right"
+        open={commentDrawerOpen}
+        onClose={() => setCommentDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            width: 380,
+            background: "#1A1D2E",
+            color: "white",
+            p: 2,
+          },
+        }}
+      >
+        {selectedIssue && (
+          <>
+            <Typography variant="h6" sx={{ mb: 2, color: "#7D3CFF" }}>
+              Comments — Issue #{selectedIssue.id}
+            </Typography>
+
+            <List sx={{ maxHeight: "70vh", overflowY: "auto" }}>
+              {comments.map((c) => (
+                <ListItem key={c.id} alignItems="flex-start">
+                  <Avatar sx={{ bgcolor: "#7D3CFF", mr: 2 }}>
+                    {c.createdByName[0]}
+                  </Avatar>
+                  <ListItemText
+                    primary={
+                      <>
+                        <strong>{c.createdByName}</strong>{" "}
+                        <span style={{ color: "gray", fontSize: "12px" }}>
+                          ({new Date(c.createdAt).toLocaleString()})
+                        </span>
+                      </>
+                    }
+                    secondary={c.message}
+                  />
+                </ListItem>
+              ))}
+            </List>
+
+            {/* ADD COMMENT */}
+            <Box sx={{ mt: 2, display: "flex", gap: 1 }}>
+              <TextField
+                placeholder="Add a comment..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                sx={{
+                  flex: 1,
+                  background: "#131723",
+                  borderRadius: 2,
+                }}
+                InputProps={{ style: { color: "white" } }}
+              />
+              <IconButton onClick={submitComment} color="primary">
+                <SendIcon />
+              </IconButton>
+            </Box>
+          </>
+        )}
+      </Drawer>
     </Box>
   );
 }
 
-/* --- Components ---- */
+/* ------------------------------------------
+   ISSUE CARD WITH COMMENT COUNT BADGE
+------------------------------------------- */
 
-function StatCard({ title, value }) {
-  return (
-    <Card
-      sx={{
-        flex: 1,
-        p: 3,
-        background: "#131723",
-        borderRadius: 2,
-      }}
-    >
-      <Typography sx={{ color: "gray", fontSize: 14 }}>{title}</Typography>
-      <Typography variant="h4">{value}</Typography>
-    </Card>
-  );
-}
-
-function IssueCard({ issue }) {
+function IssueCard({ issue, commentCount, onOpenComments }) {
   const priorityColors = {
     CRITICAL: "#8B0000",
     HIGH: "#FF4444",
@@ -245,13 +280,11 @@ function IssueCard({ issue }) {
 
   const [remaining, setRemaining] = useState(calculateRemaining());
 
-  // 🟢 LIVE UPDATE TIMER EVERY 30 SECONDS
   useEffect(() => {
     const interval = setInterval(() => {
       setRemaining(calculateRemaining());
-    }, 30000); // updates every 30s
-
-    return () => clearInterval(interval); // cleanup
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -262,8 +295,16 @@ function IssueCard({ issue }) {
         p: 3,
         mb: 2,
         border: "1px solid #222",
+        position: "relative",
       }}
     >
+      {/* COMMENT BADGE */}
+      <Badge
+        badgeContent={commentCount}
+        color="primary"
+        sx={{ position: "absolute", top: 10, right: 10 }}
+      />
+
       <Typography variant="h6" sx={{ color: "#7D3CFF" }}>
         Issue #{issue.id} <span style={{ color: "white" }}>{issue.title}</span>
       </Typography>
@@ -271,25 +312,19 @@ function IssueCard({ issue }) {
       <Typography sx={{ color: "gray", my: 1 }}>{issue.description}</Typography>
 
       <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-        {/* Priority */}
         <Chip
           label={issue.priority}
-          size="small"
           sx={{
             backgroundColor: priorityColors[issue.priority],
             color: issue.priority === "LOW" ? "black" : "white",
-            fontWeight: 600,
           }}
         />
 
-        {/* Status */}
         <Chip
           label={issue.status.replace("_", " ")}
           color="primary"
-          size="small"
         />
 
-        {/* SLA TIMER */}
         <Chip
           label={remaining}
           sx={{
@@ -297,10 +332,17 @@ function IssueCard({ issue }) {
             background:
               remaining === "SLA Breached" ? "#FF3B30" : "#00E6FF",
             color: "black",
-            fontWeight: 600,
           }}
         />
       </Box>
+
+      <Button
+        variant="outlined"
+        sx={{ mt: 2 }}
+        onClick={onOpenComments}
+      >
+        View Comments
+      </Button>
     </Card>
   );
 }
