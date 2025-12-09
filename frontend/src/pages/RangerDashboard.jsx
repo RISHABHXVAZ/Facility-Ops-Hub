@@ -20,7 +20,7 @@ import SendIcon from "@mui/icons-material/Send";
 
 export default function RangerDashboard() {
   const [issues, setIssues] = useState([]);
-  const [filter, setFilter] = useState("ALL");
+  const [viewMode, setViewMode] = useState("ACTIVE"); // ACTIVE | CLOSED
   const [openModal, setOpenModal] = useState(false);
 
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
@@ -31,12 +31,13 @@ export default function RangerDashboard() {
 
   const user = JSON.parse(localStorage.getItem("user"));
 
-  // Load issues
+  // -------------------------------
+  // LOAD ISSUES + COMMENT COUNTS
+  // -------------------------------
   const loadIssues = async () => {
     const res = await api.get("/api/issues/my");
     setIssues(res.data);
 
-    // Load comment counts for each issue
     const counts = {};
     for (let issue of res.data) {
       const res2 = await api.get(`/api/issues/${issue.id}/comments`);
@@ -45,13 +46,17 @@ export default function RangerDashboard() {
     setCommentCounts(counts);
   };
 
-  // Load comments of selected issue
+  // -------------------------------
+  // LOAD COMMENTS FOR ISSUE
+  // -------------------------------
   const loadComments = async (issueId) => {
     const res = await api.get(`/api/issues/${issueId}/comments`);
     setComments(res.data);
   };
 
-  // Add comment
+  // -------------------------------
+  // ADD COMMENT
+  // -------------------------------
   const submitComment = async () => {
     if (!newComment.trim()) return;
 
@@ -60,18 +65,26 @@ export default function RangerDashboard() {
     });
 
     setNewComment("");
-    loadComments(selectedIssue.id); // refresh comment list
-    loadIssues(); // refresh comment counts
+    loadComments(selectedIssue.id);
+    loadIssues();
   };
 
+  // -------------------------------
   useEffect(() => {
     loadIssues();
   }, []);
 
-  const filteredIssues = issues.filter((i) =>
-    filter === "ALL" ? true : i.status === filter
-  );
+  // -------------------------------
+  // FILTER ACTIVE / CLOSED ISSUES
+  // -------------------------------
+  const activeIssues = issues.filter((i) => i.status !== "CLOSED");
+  const closedIssues = issues.filter((i) => i.status === "CLOSED");
 
+  const displayedIssues = viewMode === "ACTIVE" ? activeIssues : closedIssues;
+
+  // -------------------------------
+  // OPEN COMMENTS DRAWER
+  // -------------------------------
   const openCommentDrawer = (issue) => {
     setSelectedIssue(issue);
     loadComments(issue.id);
@@ -105,8 +118,9 @@ export default function RangerDashboard() {
               background: "linear-gradient(to right, #7D3CFF, #00E6FF)",
               color: "white",
             }}
+            onClick={() => setViewMode("ACTIVE")}
           >
-            Dashboard
+            Active Issues
           </Button>
 
           <Button
@@ -116,12 +130,9 @@ export default function RangerDashboard() {
               background: "linear-gradient(to right, #7D3CFF, #00E6FF)",
               color: "white",
             }}
-            onClick={() => {
-              document.getElementById("my-issues")
-                .scrollIntoView({ behavior: "smooth" });
-            }}
+            onClick={() => setViewMode("CLOSED")}
           >
-            My Issues
+            Previous Issues
           </Button>
         </Box>
 
@@ -165,16 +176,20 @@ export default function RangerDashboard() {
         <Typography variant="h4" fontWeight="bold">
           Welcome {user?.name},
         </Typography>
+
         <Typography sx={{ mt: 1, mb: 3, color: "gray" }}>
-          Report and track facility issues
+          {viewMode === "ACTIVE"
+            ? "Track your active issues and collaborate via comments."
+            : "View previously closed issues."}
         </Typography>
 
-        {/* My Issues Section */}
-        <Typography id="my-issues" variant="h5" sx={{ mt: 4, mb: 2 }}>
-          My Issues
+        <Typography variant="h5" sx={{ mt: 4, mb: 2 }}>
+          {viewMode === "ACTIVE"
+            ? `My Active Issues (${activeIssues.length})`
+            : `Previous Issues (${closedIssues.length})`}
         </Typography>
 
-        {filteredIssues.map((issue) => (
+        {displayedIssues.map((issue) => (
           <IssueCard
             key={issue.id}
             issue={issue}
@@ -250,7 +265,7 @@ export default function RangerDashboard() {
 }
 
 /* ------------------------------------------
-   ISSUE CARD WITH COMMENT COUNT BADGE
+   ISSUE CARD COMPONENT WITH COMMENT COUNT
 ------------------------------------------- */
 
 function IssueCard({ issue, commentCount, onOpenComments }) {
@@ -278,15 +293,6 @@ function IssueCard({ issue, commentCount, onOpenComments }) {
     return hrs > 0 ? `${hrs}h ${rem}m` : `${rem}m`;
   };
 
-  const [remaining, setRemaining] = useState(calculateRemaining());
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setRemaining(calculateRemaining());
-    }, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <Card
       sx={{
@@ -298,7 +304,6 @@ function IssueCard({ issue, commentCount, onOpenComments }) {
         position: "relative",
       }}
     >
-      {/* COMMENT BADGE */}
       <Badge
         badgeContent={commentCount}
         color="primary"
@@ -306,7 +311,7 @@ function IssueCard({ issue, commentCount, onOpenComments }) {
       />
 
       <Typography variant="h6" sx={{ color: "#7D3CFF" }}>
-        Issue #{issue.id} <span style={{ color: "white" }}>{issue.title}</span>
+        Issue #{issue.id} — <span style={{ color: "white" }}>{issue.title}</span>
       </Typography>
 
       <Typography sx={{ color: "gray", my: 1 }}>{issue.description}</Typography>
@@ -326,21 +331,16 @@ function IssueCard({ issue, commentCount, onOpenComments }) {
         />
 
         <Chip
-          label={remaining}
+          label={calculateRemaining()}
           sx={{
             ml: "auto",
-            background:
-              remaining === "SLA Breached" ? "#FF3B30" : "#00E6FF",
+            background: issue.slaBreached ? "#FF3B30" : "#00E6FF",
             color: "black",
           }}
         />
       </Box>
 
-      <Button
-        variant="outlined"
-        sx={{ mt: 2 }}
-        onClick={onOpenComments}
-      >
+      <Button variant="outlined" sx={{ mt: 2 }} onClick={onOpenComments}>
         View Comments
       </Button>
     </Card>

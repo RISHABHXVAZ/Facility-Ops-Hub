@@ -34,12 +34,14 @@ import { useSnackbar } from "notistack";
 export default function EngineerDashboard() {
   const [issues, setIssues] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [commentCounts, setCommentCounts] = useState({});   // ✅ FIXED
+  const [commentCounts, setCommentCounts] = useState({});
   const [anchorEl, setAnchorEl] = useState(null);
 
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
   const [sortType, setSortType] = useState("SLA");
+
+  const [activeTab, setActiveTab] = useState("ACTIVE"); // NEW TAB STATE
 
   const open = Boolean(anchorEl);
   const { enqueueSnackbar } = useSnackbar();
@@ -74,9 +76,7 @@ export default function EngineerDashboard() {
     setNotifications(res.data);
   };
 
-  // -----------------------
   // LOAD COMMENTS FOR ISSUE
-  // -----------------------
   const loadComments = async (issueId) => {
     const res = await api.get(`/api/issues/${issueId}/comments`);
     setComments(res.data);
@@ -91,7 +91,7 @@ export default function EngineerDashboard() {
 
     setNewComment("");
     loadComments(selectedIssue.id);
-    loadIssues(); // refresh comment count
+    loadIssues();
   };
 
   // -----------------------
@@ -173,8 +173,17 @@ export default function EngineerDashboard() {
     return `${Math.floor(mins / 60)}h ${mins % 60}m`;
   };
 
+  // ACTIVE ISSUES LIST
+  const activeIssues = issues.filter(
+    (i) => i.status !== "CLOSED"
+  );
+
+  // PREVIOUS (CLOSED) ISSUES
+  const closedIssues = issues.filter((i) => i.status === "CLOSED");
+
+  // FILTER + SORT apply only on active issues
   const filteredSortedIssues = useMemo(() => {
-    let list = [...issues];
+    let list = [...activeIssues];
 
     if (search)
       list = list.filter(
@@ -206,9 +215,6 @@ export default function EngineerDashboard() {
     setCommentDrawerOpen(true);
   };
 
-  // -----------------------
-  // UI STARTS
-  // -----------------------
   return (
     <Box sx={{ display: "flex", background: "#0D0F1A", height: "100vh" }}>
 
@@ -276,24 +282,22 @@ export default function EngineerDashboard() {
       {/* MAIN CONTENT */}
       <Box sx={{ flex: 1, p: 4, color: "white", overflowY: "auto" }}>
 
-        {/* ******** TOP BAR ******** */}
+        {/* TOP BAR */}
         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 4 }}>
-          <Box sx={{ display: "flex", gap: 2 }}>
-            <TextField
-              placeholder="Search issues..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              InputProps={{
-                startAdornment: <SearchIcon sx={{ mr: 1 }} />,
-                style: { color: "white" },
-              }}
-              sx={{
-                width: 250,
-                background: "#1A1D2E",
-                borderRadius: 2,
-              }}
-            />
-          </Box>
+          <TextField
+            placeholder="Search issues..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            InputProps={{
+              startAdornment: <SearchIcon sx={{ mr: 1 }} />,
+              style: { color: "white" },
+            }}
+            sx={{
+              width: 250,
+              background: "#1A1D2E",
+              borderRadius: 2,
+            }}
+          />
 
           {/* NOTIFICATION BELL */}
           <IconButton color="inherit" onClick={handleBellClick}>
@@ -314,90 +318,196 @@ export default function EngineerDashboard() {
           Manage assigned issues, update progress and collaborate via comments.
         </Typography>
 
-        {/* ISSUE LIST */}
-        <Typography variant="h5" sx={{ mb: 2 }}>
-          Assigned Issues ({filteredSortedIssues.length})
-        </Typography>
+        {/* TABS */}
+        <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+          <Button
+            variant={activeTab === "ACTIVE" ? "contained" : "outlined"}
+            sx={{
+              background:
+                activeTab === "ACTIVE"
+                  ? "linear-gradient(to right, #7D3CFF, #00E6FF)"
+                  : "transparent",
+              borderColor: "#7D3CFF",
+              color: "white",
+              px: 3,
+            }}
+            onClick={() => setActiveTab("ACTIVE")}
+          >
+            Active Issues ({activeIssues.length})
+          </Button>
 
-        {filteredSortedIssues.map((issue) => {
-          const remaining = calculateRemaining(issue.slaDeadline, issue.slaBreached);
+          <Button
+            variant={activeTab === "CLOSED" ? "contained" : "outlined"}
+            sx={{
+              background:
+                activeTab === "CLOSED"
+                  ? "linear-gradient(to right, #7D3CFF, #00E6FF)"
+                  : "transparent",
+              borderColor: "#7D3CFF",
+              color: "white",
+              px: 3,
+            }}
+            onClick={() => setActiveTab("CLOSED")}
+          >
+            Previous Issues ({closedIssues.length})
+          </Button>
+        </Box>
 
-          return (
-            <Card
-              key={issue.id}
-              sx={{
-                background: "#131723",
-                p: 3,
-                mb: 2,
-                borderRadius: 3,
-                border: "1px solid #222",
-              }}
-            >
-              <Typography variant="h6" sx={{ color: "#7D3CFF" }}>
-                Issue #{issue.id} — <span style={{ color: "white" }}>{issue.title}</span>
-              </Typography>
+        {/* ACTIVE ISSUES LIST */}
+        {activeTab === "ACTIVE" && (
+          <>
+            <Typography variant="h5" sx={{ mb: 2 }}>
+              Assigned Issues ({filteredSortedIssues.length})
+            </Typography>
 
-              <Typography sx={{ color: "gray", my: 1 }}>
-                {issue.description}
-              </Typography>
+            {filteredSortedIssues.map((issue) => {
+              const remaining = calculateRemaining(
+                issue.slaDeadline,
+                issue.slaBreached
+              );
 
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <Chip
-                  label={issue.priority}
+              return (
+                <Card
+                  key={issue.id}
                   sx={{
-                    backgroundColor: priorityColors[issue.priority],
-                    color: issue.priority === "LOW" ? "black" : "white",
+                    background: "#131723",
+                    p: 3,
+                    mb: 2,
+                    borderRadius: 3,
+                    border: "1px solid #222",
                   }}
-                />
+                >
+                  <Typography variant="h6" sx={{ color: "#7D3CFF" }}>
+                    Issue #{issue.id} —{" "}
+                    <span style={{ color: "white" }}>{issue.title}</span>
+                  </Typography>
 
-                <Chip label={issue.status.replace("_", " ")} color="primary" />
+                  <Typography sx={{ color: "gray", my: 1 }}>
+                    {issue.description}
+                  </Typography>
 
-                {/* SLA */}
-                <Chip
-                  label={remaining}
-                  sx={{
-                    ml: "auto",
-                    background:
-                      remaining === "SLA Breached" ? "#FF3B30" : "#00E6FF",
-                    color: "black",
-                  }}
-                />
-              </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <Chip
+                      label={issue.priority}
+                      sx={{
+                        backgroundColor: priorityColors[issue.priority],
+                        color: issue.priority === "LOW" ? "black" : "white",
+                      }}
+                    />
 
-              {/* ACTIONS */}
-              <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
-                {issue.status === "ASSIGNED" && (
-                  <Button variant="contained" onClick={() => updateStatus(issue.id, "IN_PROGRESS")}>
-                    Start Work
-                  </Button>
-                )}
+                    <Chip
+                      label={issue.status.replace("_", " ")}
+                      color="primary"
+                    />
 
-                {issue.status === "IN_PROGRESS" && (
-                  <Button variant="contained" onClick={() => updateStatus(issue.id, "COMPLETED")}>
-                    Mark Completed
-                  </Button>
-                )}
+                    <Box
+                      sx={{
+                        ml: "auto",
+                        px: 2,
+                        py: "6px",
+                        borderRadius: "20px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        fontWeight: 600,
+                        fontSize: "14px",
+                        background:
+                          remaining === "SLA Breached"
+                            ? "linear-gradient(to right, #FF3B30, #FF8A80)"
+                            : "linear-gradient(to right, #00E6FF, #7D3CFF)",
+                        color: "#000",
+                        boxShadow:
+                          remaining === "SLA Breached"
+                            ? "0 0 10px rgba(255,0,0,0.5)"
+                            : "0 0 10px rgba(0,230,255,0.5)",
+                      }}
+                    >
+                      {remaining === "SLA Breached" ? "⚠ SLA Breached" : `⏱ ${remaining}`}
+                    </Box>
 
-                {issue.status === "COMPLETED" && (
-                  <Button variant="outlined" onClick={() => updateStatus(issue.id, "CLOSED")}>
-                    Close Issue
-                  </Button>
-                )}
+                  </Box>
 
-                {/* COMMENTS BUTTON WITH COUNT */}
+                  {/* ACTION BUTTONS */}
+                  <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
+                    {issue.status === "ASSIGNED" && (
+                      <Button
+                        variant="contained"
+                        onClick={() => updateStatus(issue.id, "IN_PROGRESS")}
+                      >
+                        Start Work
+                      </Button>
+                    )}
+
+                    {issue.status === "IN_PROGRESS" && (
+                      <Button
+                        variant="contained"
+                        onClick={() => updateStatus(issue.id, "COMPLETED")}
+                      >
+                        Mark Completed
+                      </Button>
+                    )}
+
+                    {issue.status === "COMPLETED" && (
+                      <Button
+                        variant="outlined"
+                        onClick={() => updateStatus(issue.id, "CLOSED")}
+                      >
+                        Close Issue
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="outlined"
+                      sx={{ ml: "auto" }}
+                      onClick={() => openComments(issue)}
+                      startIcon={<ChatBubbleOutlineIcon />}
+                    >
+                      {commentCounts[issue.id] || 0} Comments
+                    </Button>
+                  </Box>
+                </Card>
+              );
+            })}
+          </>
+        )}
+
+        {/* PREVIOUS (CLOSED) ISSUES LIST */}
+        {activeTab === "CLOSED" && (
+          <>
+            <Typography variant="h5" sx={{ mb: 2 }}>
+              Previous Issues ({closedIssues.length})
+            </Typography>
+
+            {closedIssues.map((issue) => (
+              <Card
+                key={issue.id}
+                sx={{
+                  background: "#0F1425",
+                  p: 3,
+                  mb: 2,
+                  borderRadius: 3,
+                  border: "1px solid #333",
+                }}
+              >
+                <Typography variant="h6" sx={{ color: "#888" }}>
+                  Issue #{issue.id} — <span>{issue.title}</span>
+                </Typography>
+
+                <Typography sx={{ color: "gray", my: 1 }}>
+                  {issue.description}
+                </Typography>
+
                 <Button
                   variant="outlined"
-                  sx={{ ml: "auto" }}
                   onClick={() => openComments(issue)}
                   startIcon={<ChatBubbleOutlineIcon />}
                 >
-                  {commentCounts[issue.id] || 0} Comments
+                  View Comments ({commentCounts[issue.id] || 0})
                 </Button>
-              </Box>
-            </Card>
-          );
-        })}
-
+              </Card>
+            ))}
+          </>
+        )}
       </Box>
 
       {/* COMMENTS DRAWER */}
