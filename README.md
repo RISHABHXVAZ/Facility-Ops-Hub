@@ -1,104 +1,104 @@
-Project Overview: 
+# 🚀 Facility Ops Hub  
+### _A modern, role-based command center for facility issue management_
 
-Facility Ops Hub is a centralized, role-based command-center platform designed to streamline facility issue reporting, workload distribution, SLA tracking, and real-time communication. Inspired by a Power Rangers aesthetic, the system provides a gamified but fully functional operational workflow for Rangers (users), Engineers, Supervisors, and Admins.
+<p align="center">
+  <img src="https://img.shields.io/badge/Java-23-blue" />
+  <img src="https://img.shields.io/badge/Spring%20Boot-4-brightgreen" />
+  <img src="https://img.shields.io/badge/React.js-Frontend-blue" />
+  <img src="https://img.shields.io/badge/PostgreSQL-Database-lightgrey" />
+  <img src="https://img.shields.io/badge/Status-In%20Development-yellow" />
+</p>
 
-The system automates facility management using structured workflows, escalation policies, dashboards, analytics, and real-time updates.
+---
 
+## 📌 Project Overview  
+**Facility Ops Hub** is a centralized platform designed to streamline:
 
+- Facility issue reporting  
+- Task distribution  
+- SLA countdown tracking  
+- Real-time communication  
+- Workload analytics  
+- Admin-level controls  
 
-PS Number: 9
+The UI is inspired by a **Power Rangers command-center theme**, blending gamification with practical workflow automation.
 
-Problem Statement:
+**PS Number:** 9  
 
-Large facilities often face difficulty tracking issues, assigning tasks efficiently, and meeting SLA expectations. Manual coordination leads to delays, poor visibility, and accountability gaps.
-Facility Ops Hub solves this by providing an end-to-end digital workflow with dashboards, analytics, automation, and notifications.
+---
 
+## 🛑 Problem Statement  
+Large facilities often struggle with:
 
+- Untracked or delayed issues  
+- Poor visibility of workload distribution  
+- Missed SLA deadlines  
+- Manual coordination delays  
+- Lack of structured escalation  
 
+**Facility Ops Hub** provides a complete digital workflow with dashboards, analytics, role-based interfaces, and automated notifications.
 
-Features Implemented:
+---
 
-1.Core Functionalities
+## ✅ Features Implemented
 
-2.Role-based dashboards for Ranger, Engineer, Supervisor, Admin
+### 🔧 Core Functionalities
+- Role-based dashboards (Ranger, Engineer, Supervisor, Admin)  
+- Issue creation, assignment, priority updates  
+- SLA countdown timers  
+- Comment system & activity timeline  
+- Real-time WebSocket notifications  
+- Engineer workload analytics  
+- Admin panel for user and SLA management  
 
-3.Issue creation, assignment, status updates, and SLA countdown
+---
 
-4.Comment system + activity timeline
+## 🎨 UI / UX Features  
+- Power Rangers–inspired animated theme  
+- Role-based color coding  
+- Modern responsive frontend  
+- Badge-based progress indicators  
 
-5.Real-time WebSocket notifications
+---
 
-6.Engineer workload analytics for supervisors
+## 🛠️ Tech Stack  
 
-7.Admin panel for user management & SLA settings
+**Frontend:** React.js  
+**Backend:** Spring Boot 4, Java 23  
+**Database:** PostgreSQL  
+**Authentication:** JWT Auth  
+**Utilities:** Lombok, Git/GitHub  
 
+---
 
+## 🧪 Error Handling & Reliability  
+- Full backend input validation  
+- Centralized exception handling  
+- Graceful WebSocket disconnection fallback  
+- Auto-triggered SLA breach handlers  
+- Strict role-based authorization  
+- Database constraints ensuring data integrity  
 
+---
 
-UX / Theme Features:
+## 👥 Team Members  
 
-1.Power Rangers–themed UI animations and badges
+| Name | Role |
+|------|------------------------------|
+| **Rishabh Srivastava** | Team Leader & Backend Developer |
+| **Pranav Pandey** | Frontend Developer |
+| **Prince Keshari** | Frontend Developer & UI Designer |
 
-2.Color-coded roles with dynamic transitions
+---
 
-3.Responsive, modern interface
+## 🔮 Future Enhancements  
+- AI-based issue auto-assignment  
+- Native mobile application  
+- Advanced analytics dashboards  
+- Detailed audit logs  
+- Multi-language support  
+- Dark mode & theme customization  
 
+---
 
-
-
-
-Techstack used:
-
-1.Frontend: React.js
-
-2.Backend: Spring Boot 4, Java 23
-
-3.Database: PostgreSQL
-
-4.Authentication/API: JWT Auth, Lombok, Git/GitHub for collaborations
-
-
-
-
-Error Handling & Reliability Considerations:
-
-1.Backend validation for all API inputs
-
-2.Global exception handler for clean error responses
-
-3.Graceful failures for WebSocket disconnections
-
-4.SLA countdown auto-triggers to prevent missed deadlines
-
-5.Role-based authorization using JWT
-
-6.Database constraints ensure data integrity
-
-
-
-
-Team Members & Responsibilities: 
-
-1. Rishabh Srivastava: Team Leader and Backend Developer
-  
-2. Pranav Pandey : Frontend Developer
- 
-3. Prince Keshari: Frontend Developer and UI designer
-
-
-   
-
-Future Improvements:
-
-1.Integrate AI-based auto-assignment
-
-2.Mobile app version
-
-3.More detailed analytics dashboards
-
-4.Enhanced audit logs & reporting
-
-5.Multi-language support
-
-6.Dark mode + theme customization
 
